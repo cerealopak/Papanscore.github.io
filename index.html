@@ -78,16 +78,21 @@
         </div>
     </div>
 
-  <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-analytics.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-  import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-   // <script type="module">
-       // import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-       // import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-       // import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";-->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getDatabase, ref, onValue, set, update, get } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD3JlKgSe7Jx_BZ-nu-rqU26xdD7KpJqk8",
+            authDomain: "penelitian-akang.firebaseapp.com",
+            databaseURL: "https://penelitian-akang-default-rtdb.firebaseio.com",
+            projectId: "penelitian-akang",
+            storageBucket: "penelitian-akang.appspot.com",
+            messagingSenderId: "618891711505",
+            appId: "1:618891711505:web:a8fa04864ea8901f7e8db0",
+            measurementId: "G-CR9NG129EQ"
+        };
 
         const DOM = {
             activationOverlay: document.getElementById('activation-overlay'),
@@ -115,42 +120,24 @@
             isMuted: false,
             isReady: false,
             voice: null,
-            lastSpokenScore: { a: -1, b: -1 },
-            lastUpdatedTeam: null, // NEW: To track which team was updated
             speakerOnIcon: `Suara Aktif`,
             speakerOffIcon: `Suara Mati`,
         };
 
-        const firebaseConfig = {
-    apiKey: "AIzaSyD3JlKgSe7Jx_BZ-nu-rqU26xdD7KpJqk8",
-    authDomain: "penelitian-akang.firebaseapp.com",
-    databaseURL: "https://penelitian-akang-default-rtdb.firebaseio.com",
-    projectId: "penelitian-akang",
-    storageBucket: "penelitian-akang.firebasestorage.app",
-    messagingSenderId: "618891711505",
-    appId: "1:618891711505:web:a8fa04864ea8901f7e8db0",
-    measurementId: "G-CR9NG129EQ"
-  };
-
-      //  const FIREBASE = {
-          //  appId: typeof __app_id !== 'undefined' ? __app_id : 'default-scoreboard-app',
-          //  config: typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO" },
-          //  token: typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null,
-        //    ref: null,
-         //   unsubscribe: null,
-      //  };
+        let db, auth, scoreboardRef;
+        let lastUpdatedTeam = null;
+        let lastAnnouncedScore = { teamAScore: -1, teamBScore: -1 };
 
         function numberToIndonesianWord(num) {
             const words = ["nol", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas"];
             if (num >= 0 && num <= 11) return words[num];
             if (num < 20) return words[num % 10] + " belas";
-            if (num < 100 && num % 10 === 0) return words[num / 10] + " puluh";
-            if (num < 100) return words[Math.floor(num / 10)] + " puluh " + words[num % 10];
+            if (num < 100) return words[Math.floor(num / 10)] + " puluh " + (num % 10 === 0 ? "" : words[num % 10]);
             return num.toString();
         }
 
         function speak(texts) {
-            if (TTS.isMuted || !TTS.isReady || !TTS.synth || !texts || texts.length === 0) return;
+            if (TTS.isMuted || !TTS.isReady || !TTS.synth || !texts) return;
             const textArray = Array.isArray(texts) ? texts : [texts];
             if (TTS.synth.speaking) TTS.synth.cancel();
 
@@ -166,26 +153,23 @@
             speakPart(0);
         }
 
-        function announceScore(data, priorityTeam) {
+        function announceScore(data) {
+            if (!data || (data.teamAScore === lastAnnouncedScore.teamAScore && data.teamBScore === lastAnnouncedScore.teamBScore)) {
+                return;
+            }
+            lastAnnouncedScore = { teamAScore: data.teamAScore, teamBScore: data.teamBScore };
+            
             const { teamAName, teamBName, teamAScore, teamBScore } = data;
-            if (teamAScore === TTS.lastSpokenScore.a && teamBScore === TTS.lastSpokenScore.b) return;
-
-            TTS.lastSpokenScore = { a: teamAScore, b: teamBScore };
             
             if (teamAScore === teamBScore) {
-                const announcement = (teamAScore >= 20) ? "Jus" : `${numberToIndonesianWord(teamAScore)} sama`;
-                speak(announcement);
+                speak((teamAScore >= 20) ? "Jus" : `${numberToIndonesianWord(teamAScore)} sama`);
             } else {
                 let announcementA = `${teamAName}, ${numberToIndonesianWord(teamAScore)}`;
                 let announcementB = `${teamBName}, ${numberToIndonesianWord(teamBScore)}`;
-
-                if (teamAScore >= 20 && teamAScore - teamBScore === 1) announcementA += '. Poin pertandingan';
-                else if (teamBScore >= 20 && teamBScore - teamAScore === 1) announcementB += '. Poin pertandingan';
                 
-                // NEW: Check priority to decide the order
-                if (priorityTeam === 'B') {
+                if (lastUpdatedTeam === 'B') {
                     speak([announcementB, announcementA]);
-                } else { // Default to A first if no priority or priority is A
+                } else {
                     speak([announcementA, announcementB]);
                 }
             }
@@ -202,25 +186,14 @@
                     const voices = TTS.synth.getVoices();
                     if (voices.length > 0) {
                         TTS.voice = voices.find(v => v.lang.startsWith('id-ID')) || voices[0];
-                        if (TTS.voice) {
-                            DOM.audioStatus.textContent = "Suara siap!";
-                            TTS.isReady = true;
-                            resolve(true);
-                        } else {
-                           DOM.audioStatus.textContent = "Gagal memuat suara.";
-                           resolve(false);
-                        }
+                        DOM.audioStatus.textContent = TTS.voice ? "Suara siap!" : "Gagal memuat suara.";
+                        TTS.isReady = !!TTS.voice;
+                        resolve(TTS.isReady);
                     }
                 };
                 TTS.synth.onvoiceschanged = loadVoices;
                 loadVoices();
             });
-        }
-        
-        function showStatus(message, duration = 2000) {
-            DOM.status.textContent = message;
-            DOM.status.classList.remove('opacity-0');
-            setTimeout(() => DOM.status.classList.add('opacity-0'), duration);
         }
 
         DOM.activateButton.addEventListener('click', async () => {
@@ -237,21 +210,17 @@
 
         function setupEventListeners() {
             DOM.scoreButtons.forEach(button => {
-                button.addEventListener('click', async (e) => {
-                    if (TTS.isReady && !TTS.isMuted) TTS.synth.speak(new SpeechSynthesisUtterance(""));
-                    
-                    const team = e.currentTarget.dataset.team;
-                    const increment = parseInt(e.currentTarget.dataset.inc, 10);
-                    
-                    // NEW: Set the priority team before updating the score
-                    TTS.lastUpdatedTeam = team;
+                button.addEventListener('click', async () => {
+                    const team = button.dataset.team;
+                    const increment = parseInt(button.dataset.inc, 10);
+                    lastUpdatedTeam = team;
 
-                    const docSnap = await getDoc(FIREBASE.ref);
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
+                    const snapshot = await get(scoreboardRef);
+                    if (snapshot.exists()) {
+                        const data = snapshot.val();
                         const key = team === 'A' ? 'teamAScore' : 'teamBScore';
                         const newScore = Math.max(0, data[key] + increment);
-                        await updateDoc(FIREBASE.ref, { [key]: newScore });
+                        update(scoreboardRef, { [key]: newScore });
                     }
                 });
             });
@@ -268,19 +237,19 @@
             DOM.controlButtons.confirmReset.addEventListener('click', async () => {
                 DOM.resetModal.classList.add('opacity-0', 'pointer-events-none');
                 speak("Skor direset");
-                await updateDoc(FIREBASE.ref, { teamAScore: 0, teamBScore: 0 });
+                update(scoreboardRef, { teamAScore: 0, teamBScore: 0 });
             });
 
-            const updateName = async (team, newName) => await updateDoc(FIREBASE.ref, { [team === 'A' ? 'teamAName' : 'teamBName']: newName });
+            const updateName = async (team, newName) => await update(scoreboardRef, { [team === 'A' ? 'teamAName' : 'teamBName']: newName });
             DOM.teamAName.addEventListener('blur', () => updateName('A', DOM.teamAName.value));
             DOM.teamBName.addEventListener('blur', () => updateName('B', DOM.teamBName.value));
             
             DOM.controlButtons.switch.addEventListener('click', async () => {
-                const docSnap = await getDoc(FIREBASE.ref);
-                if(docSnap.exists()){
-                    const d = docSnap.data();
+                const snapshot = await get(scoreboardRef);
+                if(snapshot.exists()){
+                    const d = snapshot.val();
                     speak("Tukar sisi");
-                    await updateDoc(FIREBASE.ref, {
+                    update(scoreboardRef, {
                         teamAName: d.teamBName, teamBName: d.teamAName,
                         teamAScore: d.teamBScore, teamBScore: d.teamAScore,
                     });
@@ -288,45 +257,40 @@
             });
         }
 
-        function mainFirebase() {
+        async function mainFirebase() {
             try {
                 const app = initializeApp(firebaseConfig);
-                const analytics = getAnalytics(app);
-              //  const app = initializeApp(FIREBASE.config);
-                const auth = getAuth(app);
-                const db = getFirestore(app);
-                FIREBASE.ref = doc(db, 'artifacts', FIREBASE.appId, 'public', 'data', 'scoreboard', 'main_game');
+                auth = getAuth(app);
+                db = getDatabase(app);
+                scoreboardRef = ref(db, "scores/game1");
 
-                onAuthStateChanged(auth, user => {
-                    if (user) {
-                        if (FIREBASE.unsubscribe) FIREBASE.unsubscribe();
-                        FIREBASE.unsubscribe = onSnapshot(FIREBASE.ref, async (docSnap) => {
-                            let data;
-                            if (docSnap.exists()) data = docSnap.data();
-                            else {
-                                data = { teamAName: "Tim A", teamBName: "Tim B", teamAScore: 0, teamBScore: 0 };
-                                await setDoc(FIREBASE.ref, data);
-                            }
-                            if (document.activeElement !== DOM.teamAName) DOM.teamAName.value = data.teamAName;
-                            if (document.activeElement !== DOM.teamBName) DOM.teamBName.value = data.teamBName;
-                            DOM.teamAScore.textContent = data.teamAScore;
-                            DOM.teamBScore.textContent = data.teamBScore;
-                            
-                            // Pass the priority team to the announce function
-                            announceScore(data, TTS.lastUpdatedTeam);
-                            // Reset the priority after announcement
-                            TTS.lastUpdatedTeam = null; 
-                        });
-                        showStatus('Terhubung ke server.');
+                // LEBIH ROBUST: TUNGGU SAMPAI LOGIN SELESAI
+                const userCredential = await signInAnonymously(auth);
+                console.log("Signed in anonymously:", userCredential.user.uid);
+
+                // SETELAH LOGIN SUKSES, BARU SAMBUNGKAN KE DATABASE
+                onValue(scoreboardRef, async (snapshot) => {
+                    let data;
+                    if (snapshot.exists()) {
+                        data = snapshot.val();
                     } else {
-                        if (FIREBASE.token) signInWithCustomToken(auth, FIREBASE.token);
-                        else signInAnonymously(auth);
+                        console.log("No data found, creating initial data...");
+                        data = { teamAName: "Tim A", teamBName: "Tim B", teamAScore: 0, teamBScore: 0 };
+                        await set(scoreboardRef, data);
                     }
+                    DOM.teamAName.value = data.teamAName;
+                    DOM.teamBName.value = data.teamBName;
+                    DOM.teamAScore.textContent = data.teamAScore;
+                    DOM.teamBScore.textContent = data.teamBScore;
+                    
+                    announceScore(data);
                 });
+
                 setupEventListeners();
+
             } catch (error) {
                 console.error("Firebase Gagal:", error);
-                showStatus('Gagal terhubung ke server.');
+                alert("Koneksi ke database gagal. Pastikan login anonim sudah diaktifkan di Firebase Console.");
             }
         }
     </script>
