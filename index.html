@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Papan Skor Bulutangkis Real-time</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .score-display { line-height: 1; }
+        .custom-focus:focus { outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5); }
+        .modal-backdrop, #activation-overlay { transition: opacity 0.3s ease-in-out; }
+        .modal-content { transition: transform 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4 overflow-hidden">
+
+    <!-- Activation Overlay -->
+    <div id="activation-overlay" class="fixed inset-0 bg-gray-900 flex flex-col items-center justify-center z-50 p-4">
+        <div class="text-center">
+            <h1 class="text-4xl font-bold text-cyan-400 mb-4">Papan Skor Bulutangkis</h1>
+            <p class="text-gray-400 mb-8">Klik untuk memulai dan mengaktifkan fitur suara.</p>
+            <button id="activate-audio-button" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg transition-transform transform active:scale-95 disabled:opacity-50 disabled:cursor-wait">
+                Mulai & Aktifkan Suara
+            </button>
+            <p id="audio-status" class="text-gray-500 mt-4 text-sm h-5"></p>
+        </div>
+    </div>
+
+    <!-- Main App Container (Initially hidden) -->
+    <div id="app-container" class="w-full max-w-4xl mx-auto opacity-0 transition-opacity duration-500 pointer-events-none">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-cyan-400">Papan Skor Bulutangkis</h1>
+            <p class="text-gray-400 mt-1">Skor diumumkan dan diperbarui real-time.</p>
+        </header>
+
+        <main class="bg-gray-800 rounded-2xl shadow-2xl p-4 md:p-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+                <!-- Team A -->
+                <div class="flex flex-col items-center bg-gray-700/50 rounded-xl p-6">
+                    <input type="text" id="teamAName" class="w-full bg-transparent text-center text-2xl md:text-3xl font-bold border-b-2 border-gray-600 focus:border-cyan-400 p-2 mb-4 custom-focus" value="Tim A">
+                    <div id="teamAScore" class="score-display text-8xl md:text-9xl font-black my-4">0</div>
+                    <div class="flex space-x-4">
+                        <button data-team="A" data-inc="1" class="score-button bg-green-600 hover:bg-green-500 rounded-full w-16 h-16 flex items-center justify-center text-4xl transform active:scale-90">+</button>
+                        <button data-team="A" data-inc="-1" class="score-button bg-red-600 hover:bg-red-500 rounded-full w-16 h-16 flex items-center justify-center text-4xl transform active:scale-90">-</button>
+                    </div>
+                </div>
+                <!-- Team B -->
+                <div class="flex flex-col items-center bg-gray-700/50 rounded-xl p-6">
+                    <input type="text" id="teamBName" class="w-full bg-transparent text-center text-2xl md:text-3xl font-bold border-b-2 border-gray-600 focus:border-cyan-400 p-2 mb-4 custom-focus" value="Tim B">
+                    <div id="teamBScore" class="score-display text-8xl md:text-9xl font-black my-4">0</div>
+                    <div class="flex space-x-4">
+                        <button data-team="B" data-inc="1" class="score-button bg-green-600 hover:bg-green-500 rounded-full w-16 h-16 flex items-center justify-center text-4xl transform active:scale-90">+</button>
+                        <button data-team="B" data-inc="-1" class="score-button bg-red-600 hover:bg-red-500 rounded-full w-16 h-16 flex items-center justify-center text-4xl transform active:scale-90">-</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Controls -->
+            <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button id="switchSides" class="control-button w-full sm:w-auto bg-blue-600 hover:bg-blue-500 font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transform active:scale-95">Tukar Sisi</button>
+                <button id="resetScores" class="control-button w-full sm:w-auto bg-gray-600 hover:bg-gray-500 font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transform active:scale-95">Reset</button>
+                <button id="muteButton" class="control-button w-full sm:w-auto bg-yellow-600 hover:bg-yellow-500 font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transform active:scale-95"></button>
+            </div>
+        </main>
+    </div>
+    
+    <div id="status" class="fixed top-5 left-1/2 -translate-x-1/2 bg-gray-800/80 backdrop-blur-sm text-sm px-4 py-2 rounded-full shadow-lg opacity-0 transition-opacity"></div>
+    <div id="resetModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 opacity-0 pointer-events-none">
+        <div class="modal-content bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6 transform scale-95">
+            <h3 class="text-xl font-bold text-center mb-2">Reset Papan Skor?</h3>
+            <p class="text-gray-400 text-center mb-6">Skor akan diatur ulang menjadi 0.</p>
+            <div class="flex justify-center gap-4">
+                <button id="confirmReset" class="w-full bg-red-600 hover:bg-red-500 font-semibold py-3 px-6 rounded-lg transform active:scale-95">Ya, Reset</button>
+                <button id="cancelReset" class="w-full bg-gray-600 hover:bg-gray-500 font-semibold py-3 px-6 rounded-lg transform active:scale-95">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const DOM = {
+            activationOverlay: document.getElementById('activation-overlay'),
+            activateButton: document.getElementById('activate-audio-button'),
+            audioStatus: document.getElementById('audio-status'),
+            appContainer: document.getElementById('app-container'),
+            teamAName: document.getElementById('teamAName'),
+            teamBName: document.getElementById('teamBName'),
+            teamAScore: document.getElementById('teamAScore'),
+            teamBScore: document.getElementById('teamBScore'),
+            muteButton: document.getElementById('muteButton'),
+            resetModal: document.getElementById('resetModal'),
+            status: document.getElementById('status'),
+            scoreButtons: document.querySelectorAll('.score-button'),
+            controlButtons: {
+                switch: document.getElementById('switchSides'),
+                reset: document.getElementById('resetScores'),
+                confirmReset: document.getElementById('confirmReset'),
+                cancelReset: document.getElementById('cancelReset'),
+            }
+        };
+
+        const TTS = {
+            synth: window.speechSynthesis,
+            isMuted: false,
+            isReady: false,
+            voice: null,
+            lastSpokenScore: { a: -1, b: -1 },
+            lastUpdatedTeam: null, // NEW: To track which team was updated
+            speakerOnIcon: `Suara Aktif`,
+            speakerOffIcon: `Suara Mati`,
+        };
+
+        const FIREBASE = {
+            appId: typeof __app_id !== 'undefined' ? __app_id : 'default-scoreboard-app',
+            config: typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO" },
+            token: typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null,
+            ref: null,
+            unsubscribe: null,
+        };
+
+        function numberToIndonesianWord(num) {
+            const words = ["nol", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas"];
+            if (num >= 0 && num <= 11) return words[num];
+            if (num < 20) return words[num % 10] + " belas";
+            if (num < 100 && num % 10 === 0) return words[num / 10] + " puluh";
+            if (num < 100) return words[Math.floor(num / 10)] + " puluh " + words[num % 10];
+            return num.toString();
+        }
+
+        function speak(texts) {
+            if (TTS.isMuted || !TTS.isReady || !TTS.synth || !texts || texts.length === 0) return;
+            const textArray = Array.isArray(texts) ? texts : [texts];
+            if (TTS.synth.speaking) TTS.synth.cancel();
+
+            const speakPart = (index) => {
+                if (index >= textArray.length) return;
+                const utterance = new SpeechSynthesisUtterance(textArray[index]);
+                if (TTS.voice) utterance.voice = TTS.voice;
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.95;
+                utterance.onend = () => speakPart(index + 1);
+                TTS.synth.speak(utterance);
+            };
+            speakPart(0);
+        }
+
+        function announceScore(data, priorityTeam) {
+            const { teamAName, teamBName, teamAScore, teamBScore } = data;
+            if (teamAScore === TTS.lastSpokenScore.a && teamBScore === TTS.lastSpokenScore.b) return;
+
+            TTS.lastSpokenScore = { a: teamAScore, b: teamBScore };
+            
+            if (teamAScore === teamBScore) {
+                const announcement = (teamAScore >= 20) ? "Jus" : `${numberToIndonesianWord(teamAScore)} sama`;
+                speak(announcement);
+            } else {
+                let announcementA = `${teamAName}, ${numberToIndonesianWord(teamAScore)}`;
+                let announcementB = `${teamBName}, ${numberToIndonesianWord(teamBScore)}`;
+
+                if (teamAScore >= 20 && teamAScore - teamBScore === 1) announcementA += '. Poin pertandingan';
+                else if (teamBScore >= 20 && teamBScore - teamAScore === 1) announcementB += '. Poin pertandingan';
+                
+                // NEW: Check priority to decide the order
+                if (priorityTeam === 'B') {
+                    speak([announcementB, announcementA]);
+                } else { // Default to A first if no priority or priority is A
+                    speak([announcementA, announcementB]);
+                }
+            }
+        }
+
+        function initializeAudio() {
+            return new Promise((resolve) => {
+                if (!TTS.synth) {
+                    DOM.audioStatus.textContent = "Fitur suara tidak didukung.";
+                    return resolve(false);
+                }
+                DOM.audioStatus.textContent = "Mencari suara...";
+                const loadVoices = () => {
+                    const voices = TTS.synth.getVoices();
+                    if (voices.length > 0) {
+                        TTS.voice = voices.find(v => v.lang.startsWith('id-ID')) || voices[0];
+                        if (TTS.voice) {
+                            DOM.audioStatus.textContent = "Suara siap!";
+                            TTS.isReady = true;
+                            resolve(true);
+                        } else {
+                           DOM.audioStatus.textContent = "Gagal memuat suara.";
+                           resolve(false);
+                        }
+                    }
+                };
+                TTS.synth.onvoiceschanged = loadVoices;
+                loadVoices();
+            });
+        }
+        
+        function showStatus(message, duration = 2000) {
+            DOM.status.textContent = message;
+            DOM.status.classList.remove('opacity-0');
+            setTimeout(() => DOM.status.classList.add('opacity-0'), duration);
+        }
+
+        DOM.activateButton.addEventListener('click', async () => {
+            DOM.activateButton.disabled = true;
+            DOM.activateButton.textContent = "Mengaktifkan...";
+            await initializeAudio();
+            if (TTS.isReady) speak("Papan skor siap");
+            mainFirebase();
+            setTimeout(() => {
+                DOM.activationOverlay.classList.add('opacity-0', 'pointer-events-none');
+                DOM.appContainer.classList.remove('opacity-0', 'pointer-events-none');
+            }, 1000);
+        });
+
+        function setupEventListeners() {
+            DOM.scoreButtons.forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    if (TTS.isReady && !TTS.isMuted) TTS.synth.speak(new SpeechSynthesisUtterance(""));
+                    
+                    const team = e.currentTarget.dataset.team;
+                    const increment = parseInt(e.currentTarget.dataset.inc, 10);
+                    
+                    // NEW: Set the priority team before updating the score
+                    TTS.lastUpdatedTeam = team;
+
+                    const docSnap = await getDoc(FIREBASE.ref);
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        const key = team === 'A' ? 'teamAScore' : 'teamBScore';
+                        const newScore = Math.max(0, data[key] + increment);
+                        await updateDoc(FIREBASE.ref, { [key]: newScore });
+                    }
+                });
+            });
+
+            DOM.muteButton.innerHTML = TTS.speakerOnIcon;
+            DOM.muteButton.addEventListener('click', () => {
+                TTS.isMuted = !TTS.isMuted;
+                DOM.muteButton.innerHTML = TTS.isMuted ? TTS.speakerOffIcon : TTS.speakerOnIcon;
+                if (!TTS.isMuted) speak("Suara diaktifkan"); else TTS.synth.cancel();
+            });
+            
+            DOM.controlButtons.reset.addEventListener('click', () => DOM.resetModal.classList.remove('opacity-0', 'pointer-events-none'));
+            DOM.controlButtons.cancelReset.addEventListener('click', () => DOM.resetModal.classList.add('opacity-0', 'pointer-events-none'));
+            DOM.controlButtons.confirmReset.addEventListener('click', async () => {
+                DOM.resetModal.classList.add('opacity-0', 'pointer-events-none');
+                speak("Skor direset");
+                await updateDoc(FIREBASE.ref, { teamAScore: 0, teamBScore: 0 });
+            });
+
+            const updateName = async (team, newName) => await updateDoc(FIREBASE.ref, { [team === 'A' ? 'teamAName' : 'teamBName']: newName });
+            DOM.teamAName.addEventListener('blur', () => updateName('A', DOM.teamAName.value));
+            DOM.teamBName.addEventListener('blur', () => updateName('B', DOM.teamBName.value));
+            
+            DOM.controlButtons.switch.addEventListener('click', async () => {
+                const docSnap = await getDoc(FIREBASE.ref);
+                if(docSnap.exists()){
+                    const d = docSnap.data();
+                    speak("Tukar sisi");
+                    await updateDoc(FIREBASE.ref, {
+                        teamAName: d.teamBName, teamBName: d.teamAName,
+                        teamAScore: d.teamBScore, teamBScore: d.teamAScore,
+                    });
+                }
+            });
+        }
+
+        function mainFirebase() {
+            try {
+                const app = initializeApp(FIREBASE.config);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                FIREBASE.ref = doc(db, 'artifacts', FIREBASE.appId, 'public', 'data', 'scoreboard', 'main_game');
+
+                onAuthStateChanged(auth, user => {
+                    if (user) {
+                        if (FIREBASE.unsubscribe) FIREBASE.unsubscribe();
+                        FIREBASE.unsubscribe = onSnapshot(FIREBASE.ref, async (docSnap) => {
+                            let data;
+                            if (docSnap.exists()) data = docSnap.data();
+                            else {
+                                data = { teamAName: "Tim A", teamBName: "Tim B", teamAScore: 0, teamBScore: 0 };
+                                await setDoc(FIREBASE.ref, data);
+                            }
+                            if (document.activeElement !== DOM.teamAName) DOM.teamAName.value = data.teamAName;
+                            if (document.activeElement !== DOM.teamBName) DOM.teamBName.value = data.teamBName;
+                            DOM.teamAScore.textContent = data.teamAScore;
+                            DOM.teamBScore.textContent = data.teamBScore;
+                            
+                            // Pass the priority team to the announce function
+                            announceScore(data, TTS.lastUpdatedTeam);
+                            // Reset the priority after announcement
+                            TTS.lastUpdatedTeam = null; 
+                        });
+                        showStatus('Terhubung ke server.');
+                    } else {
+                        if (FIREBASE.token) signInWithCustomToken(auth, FIREBASE.token);
+                        else signInAnonymously(auth);
+                    }
+                });
+                setupEventListeners();
+            } catch (error) {
+                console.error("Firebase Gagal:", error);
+                showStatus('Gagal terhubung ke server.');
+            }
+        }
+    </script>
+</body>
+</html>
