@@ -78,10 +78,16 @@
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  <script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-analytics.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+   // <script type="module">
+       // import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+       // import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+       // import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";-->
 
         const DOM = {
             activationOverlay: document.getElementById('activation-overlay'),
@@ -115,13 +121,24 @@
             speakerOffIcon: `Suara Mati`,
         };
 
-        const FIREBASE = {
-            appId: typeof __app_id !== 'undefined' ? __app_id : 'default-scoreboard-app',
-            config: typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO" },
-            token: typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null,
-            ref: null,
-            unsubscribe: null,
-        };
+        const firebaseConfig = {
+    apiKey: "AIzaSyD3JlKgSe7Jx_BZ-nu-rqU26xdD7KpJqk8",
+    authDomain: "penelitian-akang.firebaseapp.com",
+    databaseURL: "https://penelitian-akang-default-rtdb.firebaseio.com",
+    projectId: "penelitian-akang",
+    storageBucket: "penelitian-akang.firebasestorage.app",
+    messagingSenderId: "618891711505",
+    appId: "1:618891711505:web:a8fa04864ea8901f7e8db0",
+    measurementId: "G-CR9NG129EQ"
+  };
+
+      //  const FIREBASE = {
+          //  appId: typeof __app_id !== 'undefined' ? __app_id : 'default-scoreboard-app',
+          //  config: typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO" },
+          //  token: typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null,
+        //    ref: null,
+         //   unsubscribe: null,
+      //  };
 
         function numberToIndonesianWord(num) {
             const words = ["nol", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas"];
@@ -273,7 +290,9 @@
 
         function mainFirebase() {
             try {
-                const app = initializeApp(FIREBASE.config);
+                const app = initializeApp(firebaseConfig);
+                const analytics = getAnalytics(app);
+              //  const app = initializeApp(FIREBASE.config);
                 const auth = getAuth(app);
                 const db = getFirestore(app);
                 FIREBASE.ref = doc(db, 'artifacts', FIREBASE.appId, 'public', 'data', 'scoreboard', 'main_game');
